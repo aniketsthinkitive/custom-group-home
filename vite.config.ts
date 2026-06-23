@@ -2,11 +2,19 @@ import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import { resolve } from 'path'
 
+// ⬇️ GitHub Pages base path. For a PROJECT site served at
+//    https://<user>.github.io/<repo>/  set this to '/<repo>/'.
+//    For a USER/ORG site (https://<user>.github.io) use '/'.
+//    Change "custom-group-home" to your actual GitHub repository name.
+const GITHUB_PAGES_BASE = '/custom-group-home/'
+
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
-  
+
   return {
+    // Use the repo base only for production builds; keep dev server at '/'.
+    base: mode === 'production' ? GITHUB_PAGES_BASE : '/',
     plugins: [react()],
     build: {
       outDir: "dist",

@@ -19,7 +19,7 @@ function AppContent() {
 
   return (
     <>
-      <Router basename="/">
+      <Router basename={import.meta.env.BASE_URL}>
         <AppRoutes />
       </Router>
     </>
