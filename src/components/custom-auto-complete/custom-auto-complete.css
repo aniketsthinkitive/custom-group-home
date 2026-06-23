@@ -1,0 +1,23 @@
+.custom-autocomplete .MuiAutocomplete-popupIndicator,
+.custom-autocomplete .MuiAutocomplete-clearIndicator {
+  display: none !important;
+}
+
+/* Completely remove MUI borders for custom autocomplete */
+.custom-autocomplete-no-border .MuiOutlinedInput-root,
+.custom-autocomplete-no-border .MuiOutlinedInput-root fieldset,
+.custom-autocomplete-no-border .MuiOutlinedInput-root:hover fieldset,
+.custom-autocomplete-no-border .MuiOutlinedInput-root.Mui-focused fieldset,
+.custom-autocomplete-no-border .MuiAutocomplete-inputRoot,
+.custom-autocomplete-no-border .MuiInputBase-input {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Ensure no double borders */
+.custom-autocomplete-no-border .MuiOutlinedInput-notchedOutline {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}

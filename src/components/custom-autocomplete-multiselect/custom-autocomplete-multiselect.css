@@ -1,0 +1,4 @@
+.custom-autocomplete .MuiAutocomplete-popupIndicator,
+.custom-autocomplete .MuiAutocomplete-clearIndicator {
+  display: none !important;
+}
