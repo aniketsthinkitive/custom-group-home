@@ -13,6 +13,8 @@ import { dailyLogsSeed } from './dailyLogs';
 import { documentsSeed } from './documents';
 import { providersSeed } from './providers';
 import { auditLogsSeed } from './auditLogs';
+import { movedOutResidentsSeed } from './movedOut';
+import { carePlanItemsSeed, carePlanReportsSeed } from './carePlan';
 
 export type MockRecord = Record<string, unknown>;
 
@@ -27,6 +29,8 @@ export interface MockDB {
   documents: MockRecord[];
   providers: MockRecord[];
   auditLogs: MockRecord[];
+  carePlanItems: MockRecord[];
+  carePlanReports: MockRecord[];
   roles: MockRecord[];
   [collection: string]: MockRecord[];
 }
@@ -42,13 +46,15 @@ export function getSeedData(): MockDB {
     groupHomes: clone(groupHomesSeed),
     users: clone(usersSeed),
     leads: clone(leadsSeed),
-    residents: clone(residentsSeed),
+    residents: clone([...residentsSeed, ...movedOutResidentsSeed]),
     incidents: clone(incidentsSeed),
     appointments: clone(appointmentsSeed),
     dailyLogs: clone(dailyLogsSeed),
     documents: clone(documentsSeed),
     providers: clone(providersSeed),
     auditLogs: clone(auditLogsSeed),
+    carePlanItems: clone(carePlanItemsSeed),
+    carePlanReports: clone(carePlanReportsSeed),
     roles: clone(rolesSeed),
   };
 }

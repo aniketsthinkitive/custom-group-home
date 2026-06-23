@@ -225,6 +225,32 @@ export function routeRequest(ctx: HandlerCtx): HandlerResult {
     return { status: 200, data: okEnvelope('OK') };
   }
 
+  // Care plan reports list: GET /api/residents/care-plan-reports/{residentUuid}/ returns the
+  // reports FOR that resident (the uuid is the resident, not a report id).
+  if (segments[0] === 'residents' && segments[1] === 'care-plan-reports'
+      && segments.length === 3 && method === 'GET') {
+    const residentUuid = segments[2];
+    const reports = db.collection('carePlanReports').filter((r) => r.resident_uuid === residentUuid);
+    return { status: 200, data: listEnvelope(reports, readPageParams(ctx.query)) };
+  }
+
+  // Care plan items (ADLs / Goals) for the resident profile → Care Plan tab.
+  // Fetched via residentsList: GET /api/residents/?resident_uuid=&type=ADL|GOAL&archived=
+  if (segments[0] === 'residents' && segments.length === 1 && method === 'GET'
+      && (ctx.query.resident_uuid || ctx.query.type)) {
+    const items = db.collection('carePlanItems').filter((it) => {
+      const okResident = !ctx.query.resident_uuid || it.resident_uuid === ctx.query.resident_uuid;
+      const okType = !ctx.query.type || it.type === ctx.query.type;
+      const okArchived = ctx.query.archived === 'true'
+        ? !!it.deleted_at
+        : ctx.query.archived === 'false'
+          ? !it.deleted_at
+          : true;
+      return okResident && okType && okArchived;
+    });
+    return { status: 200, data: listEnvelope(items, readPageParams(ctx.query)) };
+  }
+
   // --- Resource routing via prefix rules ---
   for (const rule of ROUTE_RULES) {
     if (matchesPrefix(segments, rule.prefix)) {
