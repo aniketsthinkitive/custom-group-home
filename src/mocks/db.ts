@@ -11,12 +11,22 @@ import { getSeedData, type MockDB, type MockRecord } from './seed';
 
 let cache: MockDB | null = null;
 
+// Collections every healthy DB must have. If a stored DB is missing any (e.g. it was written
+// by an older/partial bundle that had the new version number but stale seed data), we discard
+// it and re-seed from the CURRENT getSeedData() — self-healing the "version matches but data
+// is incomplete" trap.
+const REQUIRED_COLLECTIONS = ['carePlanItems', 'carePlanReports', 'residents', 'leads', 'users', 'groupHomes'];
+
 function readRaw(): MockDB | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.db);
     const version = localStorage.getItem(STORAGE_KEYS.version);
     if (!raw || version !== SEED_VERSION) return null;
-    return JSON.parse(raw) as MockDB;
+    const parsed = JSON.parse(raw) as MockDB;
+    for (const key of REQUIRED_COLLECTIONS) {
+      if (!Array.isArray(parsed[key]) || parsed[key].length === 0) return null;
+    }
+    return parsed;
   } catch {
     return null;
   }

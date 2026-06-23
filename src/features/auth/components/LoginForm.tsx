@@ -167,11 +167,11 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
       </Typography>
 
       {/* Demo credentials hint (prototype — no backend) */}
-      <Alert severity="info" sx={{ fontSize: '13px', '& a': { color: 'inherit' } }}>
+      {/* <Alert severity="info" sx={{ fontSize: '13px', '& a': { color: 'inherit' } }}>
         <strong>Admin:</strong> admin@customgrouphome.com / Admin@123
         <br />
         <strong>Guardian:</strong> guardian@customgrouphome.com / Guardian@123
-      </Alert>
+      </Alert> */}
 
       {/* Error message */}
       {localError && (
