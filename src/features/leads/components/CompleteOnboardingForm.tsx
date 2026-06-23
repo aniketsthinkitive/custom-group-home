@@ -154,7 +154,7 @@ const CompleteOnboardingForm = forwardRef<CompleteOnboardingFormRef, CompleteOnb
               fontFamily: "Geist",
             }}
           >
-            Complete Onboarding
+            Complete Onboardings
           </Typography>
           <Box
             sx={{

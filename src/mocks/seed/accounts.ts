@@ -33,21 +33,43 @@ export interface DemoAccount {
   user: DemoUser;
 }
 
-const PERM_KEYS = ['view', 'create', 'edit', 'update', 'delete', 'export', 'manage'];
+// EXACT permission keys the UI checks via hasPermission("module.key"), per module — so every
+// gated button/action (onboarding.complete, documents.upload, appointments.mark_completed, ...)
+// is granted. Derived from every hasPermission/getScope call in the app.
+const PERMISSION_MATRIX: Record<string, string[]> = {
+  leads: ['view', 'create', 'edit', 'delete'],
+  onboarding: ['view', 'complete', 'move_out', 'readmit', 'transfer_home'],
+  documents: ['view', 'upload', 'delete', 'download', 'print', 'versioning'],
+  consent_forms: ['view', 'create', 'edit', 'delete', 'print', 'share'],
+  adls: ['view', 'edit', 'record'],
+  goals: ['view', 'create', 'edit', 'delete'],
+  monthly_summary: ['view', 'generate_report'],
+  daily_tracking: ['view', 'record', 'edit'],
+  incidents: ['view', 'create', 'edit', 'close'],
+  appointments: ['view', 'create', 'edit', 'delete', 'mark_completed'],
+  users: ['view', 'create', 'edit', 'deactivate', 'role_assignment'],
+  group_homes: ['view', 'create', 'edit', 'delete', 'deactivate'],
+  providers: ['view', 'create', 'edit', 'delete'],
+  audit_logs: ['view'],
+  roles: ['view', 'create', 'edit', 'delete'],
+  settings: ['view'],
+  careplan: ['view'],
+  residents: ['view'],
+};
 
-// Every module the admin UI gates on (nav tabs + common component checks).
-const ADMIN_MODULES = [
-  'leads', 'residents', 'onboarding', 'documents', 'consent_forms', 'adls', 'goals',
-  'monthly_summary', 'daily_tracking', 'incidents', 'appointments', 'users', 'group_homes',
-  'audit_logs', 'roles', 'settings', 'providers', 'careplan',
+// Admin gets every module + key (full access).
+const ADMIN_MODULES = Object.keys(PERMISSION_MATRIX);
+
+const GUARDIAN_MODULES = [
+  'residents', 'careplan', 'documents', 'consent_forms', 'incidents', 'appointments',
+  'adls', 'goals', 'monthly_summary', 'onboarding',
 ];
-
-const GUARDIAN_MODULES = ['incidents', 'appointments', 'documents', 'careplan', 'onboarding', 'residents'];
 
 function buildPermissions(modules: string[], scope: 'ALL' | 'ASSIGNED_HOME'): DemoPermission[] {
   const perms: DemoPermission[] = [];
   for (const module of modules) {
-    for (const key of PERM_KEYS) {
+    const keys = PERMISSION_MATRIX[module] ?? ['view', 'create', 'edit', 'delete'];
+    for (const key of keys) {
       perms.push({ module, key, name: `${module} ${key}`, scope });
     }
   }

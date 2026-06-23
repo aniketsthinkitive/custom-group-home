@@ -103,7 +103,8 @@ const LeadDetailHeader: React.FC<LeadDetailHeaderProps> = ({
 
   return 'Onboarding is not available at this stage';
 };
-const isCompleteDisabled = !canCompletePermission || !canCompleteOnboarding;
+// Prototype: Complete Onboarding is always enabled (disabled gating removed).
+const isCompleteDisabled = false;
 
   return (
     <Grid size={{ xs: 12 }}>

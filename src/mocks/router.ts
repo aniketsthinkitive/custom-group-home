@@ -164,6 +164,73 @@ function resourceResult(collection: string, segs: string[], ctx: HandlerCtx): Ha
   return nestedResult(collection, segs, ctx);
 }
 
+// Build a residents-roster record from a completed lead, matching the shape the residents
+// list + profile header read (flat fields + nested user/guardian).
+function buildResidentFromLead(
+  leadUuid: string,
+  lead: MockRecord | undefined,
+  body: Record<string, unknown> | undefined,
+): MockRecord {
+  const u = (lead?.user as Record<string, unknown>) || {};
+  const str = (v: unknown): string => (typeof v === 'string' ? v : '');
+  const first = str(body?.first_name) || str(u.first_name) || str(lead?.first_name) || 'New';
+  const last = str(body?.last_name) || str(u.last_name) || str(lead?.last_name) || 'Resident';
+  const ghUuid = str(body?.group_home) || str(lead?.group_home);
+  const gh = db.collection('groupHomes').find((g) => idOf(g) === ghUuid);
+  const ghName = str(gh?.name) || str(lead?.group_home_name) || str(body?.group_home_name);
+  return {
+    uuid: leadUuid,
+    id: leadUuid,
+    resident_uuid: leadUuid,
+    lead_uuid: leadUuid,
+    first_name: first,
+    last_name: last,
+    resident_name: `${first} ${last}`.trim(),
+    avatar_url: str(u.avatar_url),
+    date_of_birth: str(lead?.date_of_birth) || str(u.date_of_birth),
+    gender: str(lead?.gender) || str(u.gender),
+    email: str(u.email),
+    phone: str(u.phone),
+    referral_number: str(lead?.referral_number),
+    group_home: ghName,
+    group_home_uuid: ghUuid,
+    group_home_id: gh?.id ?? ghUuid,
+    group_home_name: ghName,
+    status: 'ACTIVE',
+    resident_status: 'ACTIVE',
+    assignment_status: 'ACTIVE',
+    room_number: str(body?.room_number),
+    admission_date: str(body?.admission_date) || nowIso().slice(0, 10),
+    discharge_date: null,
+    user: { uuid: `resident-user-${leadUuid}`, first_name: first, last_name: last, email: str(u.email), avatar_url: str(u.avatar_url) },
+    guardian: lead?.guardian ?? {},
+    guardian_relation: lead?.guardian_relation ?? '',
+    created_at: nowIso(),
+    updated_at: nowIso(),
+  };
+}
+
+// Complete onboarding: mark the lead COMPLETED and promote it into the residents roster so it
+// becomes visible under Residents.
+function completeOnboarding(leadUuid: string, body: Record<string, unknown> | undefined): HandlerResult {
+  const lead = db.collection('leads').find((l) => idOf(l) === leadUuid);
+  if (lead) {
+    lead.status = 'COMPLETED';
+    lead.updated_at = nowIso();
+  }
+  const residents = db.collection('residents');
+  const existing = residents.find((r) => r.lead_uuid === leadUuid || idOf(r) === leadUuid);
+  if (existing) {
+    existing.status = 'ACTIVE';
+    existing.resident_status = 'ACTIVE';
+    existing.assignment_status = 'ACTIVE';
+  } else {
+    residents.unshift(buildResidentFromLead(leadUuid, lead, body));
+  }
+  db.save();
+  return { status: 200, data: itemEnvelope({ ...(lead ?? {}), status: 'COMPLETED', resident_uuid: leadUuid }) };
+}
+
 function fallback(ctx: HandlerCtx): HandlerResult {
   if (ctx.method === 'GET') {
     return { status: 200, data: listEnvelope([], readPageParams(ctx.query)) };
@@ -223,6 +290,12 @@ export function routeRequest(ctx: HandlerCtx): HandlerResult {
   // Other non-resource /accounts/* (forgot-password, verify-otp, set-password, ...) → benign success.
   if (segments[0] === 'accounts' && segments[1] !== 'users' && segments[1] !== 'roles') {
     return { status: 200, data: okEnvelope('OK') };
+  }
+
+  // Complete onboarding: POST /api/leads/{lead_uuid}/complete-onboarding/ → mark lead COMPLETED
+  // and add it to the residents roster so the patient appears under Residents.
+  if (segments[0] === 'leads' && segments[2] === 'complete-onboarding' && method === 'POST') {
+    return completeOnboarding(segments[1], ctx.body);
   }
 
   // Care plan reports list: GET /api/residents/care-plan-reports/{residentUuid}/ returns the
