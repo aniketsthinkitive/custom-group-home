@@ -67,47 +67,52 @@ function monthlyProgress(offset: number): Record<string, Record<string, ShiftSta
   return out;
 }
 
-function buildCarePlanItems(): Rec[] {
+// Build the full care plan (5 ADLs + 3 goals, with daily tracking + monthly progress) for ONE
+// resident. Exported so the router can auto-generate a care plan for any resident that doesn't
+// have seeded items yet (e.g. a newly onboarded patient, whose id is the lead uuid).
+export function buildCarePlanItemsForResident(rid: string, offset = 0): Rec[] {
   const items: Rec[] = [];
-  RESIDENT_IDS.forEach((rid, ri) => {
-    ADL_TITLES.forEach((title, i) => {
-      items.push({
-        id: ri * 100 + i + 1,
-        uuid: `cpi-adl-${rid}-${i + 1}`,
-        resident_uuid: rid,
-        resident: rid,
-        type: 'ADL',
-        title,
-        description: `${title} — provide assistance as needed and document completion each shift.`,
-        assigned_shifts: i % 2 === 0 ? ['MORNING', 'EVENING'] : ['MORNING', 'EVENING', 'NIGHT'],
-        daily_status: dailyStatus(ri + i),
-        deleted_at: null,
-        is_archived: false,
-        created_at: '2025-04-01T09:00:00Z',
-        updated_at: '2025-05-01T09:00:00Z',
-      });
+  ADL_TITLES.forEach((title, i) => {
+    items.push({
+      id: offset * 100 + i + 1,
+      uuid: `cpi-adl-${rid}-${i + 1}`,
+      resident_uuid: rid,
+      resident: rid,
+      type: 'ADL',
+      title,
+      description: `${title} — provide assistance as needed and document completion each shift.`,
+      assigned_shifts: i % 2 === 0 ? ['MORNING', 'EVENING'] : ['MORNING', 'EVENING', 'NIGHT'],
+      daily_status: dailyStatus(offset + i),
+      deleted_at: null,
+      is_archived: false,
+      created_at: '2025-04-01T09:00:00Z',
+      updated_at: '2025-05-01T09:00:00Z',
     });
-    GOAL_TITLES.forEach((title, i) => {
-      const archived = i === 2; // one archived goal per resident (for the "show archived" toggle)
-      items.push({
-        id: ri * 100 + 50 + i + 1,
-        uuid: `cpi-goal-${rid}-${i + 1}`,
-        resident_uuid: rid,
-        resident: rid,
-        type: 'GOAL',
-        title,
-        description: `${title} — track progress and review monthly.`,
-        assigned_shifts: ['MORNING', 'EVENING', 'NIGHT'],
-        daily_status: dailyStatus(ri + i + 1),
-        monthly_progress: monthlyProgress(ri * 3 + i),
-        deleted_at: archived ? '2025-05-20T09:00:00Z' : null,
-        is_archived: archived,
-        created_at: '2025-04-01T09:00:00Z',
-        updated_at: '2025-05-01T09:00:00Z',
-      });
+  });
+  GOAL_TITLES.forEach((title, i) => {
+    const archived = i === 2; // one archived goal per resident (for the "show archived" toggle)
+    items.push({
+      id: offset * 100 + 50 + i + 1,
+      uuid: `cpi-goal-${rid}-${i + 1}`,
+      resident_uuid: rid,
+      resident: rid,
+      type: 'GOAL',
+      title,
+      description: `${title} — track progress and review monthly.`,
+      assigned_shifts: ['MORNING', 'EVENING', 'NIGHT'],
+      daily_status: dailyStatus(offset + i + 1),
+      monthly_progress: monthlyProgress(offset * 3 + i),
+      deleted_at: archived ? '2025-05-20T09:00:00Z' : null,
+      is_archived: archived,
+      created_at: '2025-04-01T09:00:00Z',
+      updated_at: '2025-05-01T09:00:00Z',
     });
   });
   return items;
+}
+
+function buildCarePlanItems(): Rec[] {
+  return RESIDENT_IDS.flatMap((rid, ri) => buildCarePlanItemsForResident(rid, ri));
 }
 
 function buildCarePlanReports(): Rec[] {

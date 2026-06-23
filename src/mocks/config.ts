@@ -17,4 +17,4 @@ export const STORAGE_KEYS = {
 } as const;
 
 // Bump this when seed shapes change so existing browsers re-seed cleanly on next load.
-export const SEED_VERSION = '5';
+export const SEED_VERSION = '6';

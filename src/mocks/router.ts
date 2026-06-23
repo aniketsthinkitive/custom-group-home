@@ -9,6 +9,7 @@ import { db } from './db';
 import { listEnvelope, itemEnvelope, okEnvelope, readPageParams } from './envelope';
 import { handleLogin, handleAuthRetrieve, handleRefresh, handleLogout } from './auth';
 import { getRolesWithPermissions } from './seed/accounts';
+import { buildCarePlanItemsForResident } from './seed/carePlan';
 import type { HandlerCtx, HandlerResult } from './types';
 import type { MockRecord } from './seed';
 
@@ -231,6 +232,92 @@ function completeOnboarding(leadUuid: string, body: Record<string, unknown> | un
   return { status: 200, data: itemEnvelope({ ...(lead ?? {}), status: 'COMPLETED', resident_uuid: leadUuid }) };
 }
 
+// --- Care plan item writes (ADLs / Goals are stored in the carePlanItems collection) ---
+
+function shiftsToArray(body: Record<string, unknown> | undefined): string[] {
+  const shifts = body?.shifts;
+  if (!Array.isArray(shifts)) return [];
+  return shifts
+    .map((s) => (typeof s === 'string' ? s : (s as Record<string, unknown>)?.shift))
+    .filter((s): s is string => typeof s === 'string' && s.length > 0)
+    .map((s) => s.toUpperCase());
+}
+
+function createCarePlanItem(body: Record<string, unknown> | undefined): HandlerResult {
+  const resident = String(body?.resident ?? body?.resident_uuid ?? '');
+  const id = genId('cpi');
+  const item: MockRecord = {
+    uuid: id,
+    id,
+    resident_uuid: resident,
+    resident,
+    type: body?.type ?? 'ADL',
+    title: body?.title ?? '',
+    description: body?.description ?? '',
+    assigned_shifts: shiftsToArray(body),
+    daily_status: {},
+    monthly_progress: {},
+    deleted_at: null,
+    is_archived: false,
+    created_at: nowIso(),
+    updated_at: nowIso(),
+  };
+  db.collection('carePlanItems').unshift(item);
+  db.save();
+  return { status: 201, data: itemEnvelope(item) };
+}
+
+function updateCarePlanItem(item: MockRecord, body: Record<string, unknown> | undefined): HandlerResult {
+  if (body?.title != null) item.title = body.title;
+  if (body?.description != null) item.description = body.description;
+  if (body?.shifts != null) item.assigned_shifts = shiftsToArray(body);
+  if (body?.type != null) item.type = body.type;
+  item.updated_at = nowIso();
+  db.save();
+  return { status: 200, data: itemEnvelope(item) };
+}
+
+function archiveCarePlanItem(uuid: string): HandlerResult {
+  const item = db.collection('carePlanItems').find((i) => idOf(i) === uuid);
+  if (item) {
+    item.deleted_at = nowIso();
+    item.is_archived = true;
+    item.updated_at = nowIso();
+    db.save();
+  }
+  return { status: 200, data: itemEnvelope(item ?? {}) };
+}
+
+// Daily tracking save: update each item's per-shift daily_status (drives the tracking prefill)
+// and its monthly_progress for that date (drives the Monthly Summary grid).
+function saveDailyLog(body: Record<string, unknown> | undefined): HandlerResult {
+  const shift = String(body?.shift ?? 'MORNING');
+  const logDate = String(body?.log_date ?? '');
+  const logs = Array.isArray(body?.logs) ? (body?.logs as Record<string, unknown>[]) : [];
+  const items = db.collection('carePlanItems');
+  for (const log of logs) {
+    const item = items.find((i) => idOf(i) === log.care_plan_item_uuid);
+    if (!item) continue;
+    const status = log.status;
+    const note = log.note ?? '';
+    const ds = (item.daily_status && typeof item.daily_status === 'object'
+      ? item.daily_status : {}) as Record<string, unknown>;
+    ds[shift] = { status, note };
+    item.daily_status = ds;
+    if (logDate) {
+      const mp = (item.monthly_progress && typeof item.monthly_progress === 'object'
+        ? item.monthly_progress : {}) as Record<string, Record<string, unknown>>;
+      const day = (mp[logDate] && typeof mp[logDate] === 'object' ? mp[logDate] : {}) as Record<string, unknown>;
+      day[shift] = status;
+      mp[logDate] = day;
+      item.monthly_progress = mp;
+    }
+    item.updated_at = nowIso();
+  }
+  db.save();
+  return { status: 201, data: okEnvelope('Daily log saved') };
+}
+
 function fallback(ctx: HandlerCtx): HandlerResult {
   if (ctx.method === 'GET') {
     return { status: 200, data: listEnvelope([], readPageParams(ctx.query)) };
@@ -298,6 +385,25 @@ export function routeRequest(ctx: HandlerCtx): HandlerResult {
     return completeOnboarding(segments[1], ctx.body);
   }
 
+  // --- Care plan item writes ---
+  // Create ADL/Goal: POST /api/residents/ { resident, type, title, description, shifts }
+  if (segments[0] === 'residents' && segments.length === 1 && method === 'POST' && ctx.body?.type) {
+    return createCarePlanItem(ctx.body);
+  }
+  // Edit ADL/Goal: PUT/PATCH /api/residents/{uuid}/ (only when uuid is a care plan item)
+  if (segments[0] === 'residents' && segments.length === 2 && (method === 'PUT' || method === 'PATCH')) {
+    const cpItem = db.collection('carePlanItems').find((i) => idOf(i) === segments[1]);
+    if (cpItem) return updateCarePlanItem(cpItem, ctx.body);
+  }
+  // Archive ADL/Goal: POST /api/residents/{uuid}/archive/
+  if (segments[0] === 'residents' && segments[2] === 'archive' && method === 'POST') {
+    return archiveCarePlanItem(segments[1]);
+  }
+  // Save daily tracking: POST /api/residents/daily-logs/
+  if (segments[0] === 'residents' && segments[1] === 'daily-logs' && segments.length === 2 && method === 'POST') {
+    return saveDailyLog(ctx.body);
+  }
+
   // Care plan reports list: GET /api/residents/care-plan-reports/{residentUuid}/ returns the
   // reports FOR that resident (the uuid is the resident, not a report id).
   if (segments[0] === 'residents' && segments[1] === 'care-plan-reports'
@@ -311,8 +417,16 @@ export function routeRequest(ctx: HandlerCtx): HandlerResult {
   // Fetched via residentsList: GET /api/residents/?resident_uuid=&type=ADL|GOAL&archived=
   if (segments[0] === 'residents' && segments.length === 1 && method === 'GET'
       && (ctx.query.resident_uuid || ctx.query.type)) {
-    const items = db.collection('carePlanItems').filter((it) => {
-      const okResident = !ctx.query.resident_uuid || it.resident_uuid === ctx.query.resident_uuid;
+    const coll = db.collection('carePlanItems');
+    const rid = ctx.query.resident_uuid;
+    // Auto-seed a care plan for ANY resident without one yet (newly onboarded patients use the
+    // lead uuid, moved-out residents, etc.) so the Care Plan tab is never empty.
+    if (rid && !coll.some((it) => it.resident_uuid === rid)) {
+      coll.unshift(...buildCarePlanItemsForResident(rid, 50 + (rid.length % 30)));
+      db.save();
+    }
+    const items = coll.filter((it) => {
+      const okResident = !rid || it.resident_uuid === rid;
       const okType = !ctx.query.type || it.type === ctx.query.type;
       const okArchived = ctx.query.archived === 'true'
         ? !!it.deleted_at

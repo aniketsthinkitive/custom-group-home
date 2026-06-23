@@ -15,7 +15,10 @@ let cache: MockDB | null = null;
 // by an older/partial bundle that had the new version number but stale seed data), we discard
 // it and re-seed from the CURRENT getSeedData() — self-healing the "version matches but data
 // is incomplete" trap.
-const REQUIRED_COLLECTIONS = ['carePlanItems', 'carePlanReports', 'residents', 'leads', 'users', 'groupHomes'];
+const REQUIRED_COLLECTIONS = [
+  'groupHomes', 'users', 'leads', 'residents', 'incidents', 'appointments',
+  'dailyLogs', 'documents', 'providers', 'auditLogs', 'carePlanItems', 'carePlanReports', 'roles',
+];
 
 function readRaw(): MockDB | null {
   try {

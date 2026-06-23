@@ -71,9 +71,11 @@ export function listEnvelope<T>(allItems: T[], params: PageParams) {
     previous: params.page > 1 ? `?page=${params.page - 1}` : null,
     results,
     pagination,
-    // Custom-wrapper shape
+    // Custom-wrapper shape. `data.data` mirrors the results array for consumers (e.g. the
+    // guardian care-plan tables) whose select reads `response.data.data ?? response.data`.
     data: {
       results,
+      data: results,
       count,
       total_records: count,
       totalElements: count,
